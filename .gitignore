@@ -1,0 +1,4 @@
+node_modules/
+.tmp_app_extracted.mjs
+*.log
+.DS_Store

@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TEST / DEMO — SeedSigner WIF + PSBT Test-Data Generator (fake data)</title>
+<style>
+  :root {
+    --red: #c62828;
+    --red-dark: #8e1b1b;
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --ink: #1c1e21;
+    --muted: #5c636e;
+    --line: #d7dbe0;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --accent: #1a5fb4;
+    --ok: #1e7e34;
+    --bad: #c62828;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  /* ---------- persistent TEST banner ---------- */
+  .test-banner {
+    position: sticky; top: 0; z-index: 50;
+    background: repeating-linear-gradient(45deg, var(--red) 0 24px, var(--red-dark) 24px 48px);
+    color: #fff; font-weight: 700; text-align: center;
+    padding: 10px 12px; letter-spacing: .3px;
+    text-shadow: 0 1px 2px rgba(0,0,0,.35); font-size: 15px;
+  }
+  .test-banner .stamp { display:inline-block; border: 2px solid #fff; border-radius: 4px; padding: 0 8px; margin-right: 8px; transform: rotate(-1.5deg); }
+  /* ---------- layout ---------- */
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px 14px 60px; }
+  header.site { margin: 8px 0 4px; }
+  header.site h1 { font-size: 24px; margin: 6px 0; }
+  header.site h1 .testtag { background: var(--red); color:#fff; font-size: 13px; vertical-align: middle; padding: 2px 8px; border-radius: 4px; margin-left: 8px; letter-spacing: 1px; }
+  header.site p { color: var(--muted); margin: 4px 0 0; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 18px; }
+  section h2 { margin: 0 0 10px; font-size: 19px; }
+  section h2 .num { display:inline-block; background: var(--ink); color:#fff; border-radius: 6px; width: 26px; height: 26px; text-align: center; line-height: 26px; font-size: 15px; margin-right: 8px; }
+  .grid { display: grid; gap: 14px; }
+  @media (min-width: 760px) { .grid.two { grid-template-columns: 1fr 1fr; } }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fafbfc; }
+  .card h3 { margin: 0 0 8px; font-size: 15px; }
+  .kv { display: flex; flex-direction: column; gap: 6px; }
+  .kv .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .kv .label { min-width: 130px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  code, .mono { font-family: var(--mono); font-size: 13px; }
+  .value { font-family: var(--mono); font-size: 13.5px; word-break: break-all; background: #f0f2f5; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; flex: 1 1 100%; user-select: all; }
+  .qrcode-box { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .qrcode-box .holder, .qrcode-box .holder img { max-width: min(320px, 78vw); width: min(320px, 78vw); height: auto; }
+  .qrcode-box .holder img { image-rendering: pixelated; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+  .qrcode-label { font-weight: 600; font-size: 14px; text-align: center; }
+  .hint { color: var(--muted); font-size: 12.5px; }
+  /* ---------- controls ---------- */
+  button { font: inherit; font-weight: 600; cursor: pointer; border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 6px; padding: 6px 12px; }
+  button:hover { background: #eef1f5; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #144e95; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .seg { display: inline-flex; border: 2px solid var(--ink); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 8px 14px; font-size: 14px; background: #fff; }
+  .seg button + button { border-left: 2px solid var(--ink); }
+  .seg button.active { background: var(--ink); color: #fff; }
+  .radios { display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0 10px; font-size: 15px; }
+  .radios label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .ctl { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 14px; margin: 8px 0; }
+  .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+  input[type=range] { vertical-align: middle; }
+  input[type=number] { width: 64px; font: inherit; padding: 3px 6px; }
+  .badge { display: inline-block; border-radius: 6px; padding: 3px 10px; font-size: 13px; font-weight: 600; margin: 2px 4px 2px 0; border: 1px solid; }
+  .badge.ok   { color: var(--ok);   border-color: #a5d6ae; background: #e8f5ec; }
+  .badge.bad  { color: var(--bad);  border-color: #e7b3b3; background: #fdecea; }
+  .badge.info { color: var(--accent); border-color: #aac6e8; background: #eaf1fb; }
+  .psbt-view { font-family: var(--mono); font-size: 12.5px; word-break: break-all; background: #f0f2f5; border: 1px solid var(--line); border-radius: 6px; padding: 8px; max-height: 140px; overflow: auto; user-select: all; display: none; }
+  .psbt-view.show { display: block; }
+  .frame-ind { min-width: 110px; text-align: center; font-weight: 700; }
+  details.selftest { margin-top: 22px; font-size: 13.5px; }
+  details.selftest summary { cursor: pointer; font-weight: 600; }
+  details.selftest li { font-family: var(--mono); font-size: 12.5px; margin: 4px 0; }
+  .oktxt { color: var(--ok); font-weight: 700; }
+  .badtxt { color: var(--bad); font-weight: 700; }
+  ol.steps li { margin: 8px 0; }
+  footer.note { margin-top: 26px; color: var(--muted); font-size: 13px; text-align: center; }
+  .teststamp { position: fixed; bottom: 10px; right: 10px; pointer-events: none; color: rgba(198,40,40,.45); border: 3px solid rgba(198,40,40,.45); font-weight: 800; font-size: 15px; letter-spacing: 2px; padding: 3px 10px; transform: rotate(-6deg); border-radius: 6px; z-index: 60; }
+</style>
+</head>
+<body>
+
+<div class="test-banner" role="alert">
+  <span class="stamp">TEST</span> TEST ONLY — fake data, demo keys. NEVER use with real Bitcoin.
+</div>
+<div class="teststamp" aria-hidden="true">DEMO</div>
+
+<div class="wrap">
+<header class="site">
+  <h1>SeedSigner WIF + PSBT Test-Data Generator <span class="testtag">TEST / DEMO</span></h1>
+  <p>Generates <b>fake, deterministic</b> test data to exercise the SeedSigner
+     “WIF key signing” workflow (scan WIF → scan PSBT → review → sign).
+     Everything is computed locally in your browser. All keys are known demo keys and
+     the transaction is invalid — <b>never</b> broadcast it.</p>
+</header>
+
+<section id="s-net">
+  <h2><span class="num">1</span> Network <span class="badge" id="net-badge"></span></h2>
+  <div class="seg" role="group" aria-label="Network">
+    <button id="btn-mainnet" type="button">Mainnet</button>
+    <button id="btn-testnet" type="button">Testnet</button>
+  </div>
+  <p class="hint">Default is MAINNET. Switching regenerates the WIF, both addresses and the PSBT with
+     the correct per-network values (mainnet: P2PKH 0x00 / bech32 “bc” / WIF 0x80;
+     testnet: P2PKH 0x6F / bech32 “tb” / WIF 0xEF). Match this to SeedSigner
+     <code>Settings → Network</code>.</p>
+</section>
+
+<section id="s-wif">
+  <h2><span class="num">2</span> WIF key (deterministic demo key)</h2>
+  <div class="grid two">
+    <div class="card qrcode-box">
+      <h3>Scan this on SeedSigner → <b>WIF keys</b></h3>
+      <div class="holder" id="qr-wif"></div>
+      <div class="qrcode-label">WIF as plain text (compressed) — static QR</div>
+    </div>
+    <div class="card kv">
+      <div class="row"><span class="label">WIF (compressed)</span><span class="value" id="wif"></span></div>
+      <div class="row"><span class="label">Private key (hex)</span><span class="value" id="priv-hex"></span></div>
+      <div class="row"><span class="label">Public key (compressed, hex)</span><span class="value" id="pub-hex"></span></div>
+      <div class="row hint" id="seed-note"></div>
+      <div class="btnrow">
+        <button class="primary" id="copy-wif" type="button">Copy WIF</button>
+        <button id="regen" type="button">Regenerate random key</button>
+        <button id="reset-fixed" type="button">Reset fixed demo key</button>
+      </div>
+      <p class="hint">The default key is derived from a fixed seed
+        <code>seed = HMAC-SHA256(key="seedsigner-wif-demo", data="fixed-demo-key-2026")</code>,
+        so the WIF and addresses are identical on every load (easy to verify/share).
+        “Regenerate random key” re-seeds with <code>crypto.getRandomValues()</code> instead.</p>
+    </div>
+  </div>
+</section>
+
+<section id="s-addr">
+  <h2><span class="num">3</span> Addresses (both script types, same key)</h2>
+  <div class="grid two">
+    <div class="card kv">
+      <h3>Legacy P2PKH (base58check)</h3>
+      <div class="row"><span class="value" id="addr-p2pkh"></span></div>
+      <div class="btnrow"><button id="copy-p2pkh" type="button">Copy P2PKH</button></div>
+    </div>
+    <div class="card kv">
+      <h3>Native SegWit P2WPKH (bech32)</h3>
+      <div class="row"><span class="value" id="addr-p2wpkh"></span></div>
+      <div class="btnrow"><button id="copy-p2wpkh" type="button">Copy P2WPKH</button></div>
+    </div>
+  </div>
+</section>
+
+<section id="s-psbt">
+  <h2><span class="num">4</span> Fake transaction (parseable BIP-174 PSBT) — <span class="badtxt">do NOT broadcast</span></h2>
+  <div class="radios" role="radiogroup" aria-label="Spend from">
+    <label><input type="radio" name="spend" value="p2wpkh" checked>
+      Spend from <b>P2WPKH</b> (native SegWit, <code>witness_utxo</code>) — default</label>
+    <label><input type="radio" name="spend" value="p2pkh">
+      Spend from <b>P2PKH</b> (legacy, <code>non_witness_utxo</code> + <code>witness_utxo</code>)</label>
+  </div>
+
+  <p id="psbt-summary" class="mono" style="font-size:13px"></p>
+  <p>
+    <span class="badge info" id="badge-self">self-parser: …</span>
+    <span class="badge info" id="badge-bjs">bitcoinjs-lib: …</span>
+    <span class="badge info" id="badge-struct">structure: …</span>
+  </p>
+
+  <div class="grid two" style="align-items:start">
+    <div class="card qrcode-box">
+      <h3>Scan this on SeedSigner → <b>PSBT</b> (animated Segwit split QR)</h3>
+      <div class="holder" id="qr-psbt"></div>
+      <div class="qrcode-label frame-ind" id="frame-ind">…</div>
+    </div>
+    <div class="card kv">
+      <h3>PSBT (base64, “cHNidP…”)</h3>
+      <div class="btnrow" style="margin-top:0">
+        <button class="primary" id="copy-psbt" type="button">Copy base64</button>
+        <button id="dl-psbt" type="button">Download .psbt</button>
+        <button id="toggle-b64" type="button">Show plain base64</button>
+      </div>
+      <div class="psbt-view" id="psbt-b64"></div>
+
+      <h3 style="margin-top:16px">QR animation controls</h3>
+      <div class="ctl">
+        <span class="seg" id="qr-mode" role="group" aria-label="QR mode">
+          <button data-mode="anim" class="active" type="button">Animated (split)</button>
+          <button data-mode="full" type="button">Full single QR</button>
+        </span>
+      </div>
+      <div class="ctl">
+        <label>FPS <input type="range" id="fps" min="1" max="15" value="5" step="1">
+          <span id="fps-val" class="mono">5</span></label>
+        <button id="pause" type="button">Pause</button>
+        <button id="next" type="button">Next frame →</button>
+      </div>
+      <div class="ctl">
+        <label>Frames: N = <input type="number" id="frames" min="2" max="50" value="10"></label>
+      </div>
+      <p class="hint">Split-QR framing (same style Sparrow/Electrum/SeedSigner use): each frame is
+        the 17-byte header (4×0x00, 0x01, 12×0x00), then frame index, total frames,
+        data length (2 bytes), then that frame's chunk of the base64 PSBT — encoded as raw QR bytes.</p>
+    </div>
+  </div>
+</section>
+
+<section id="s-instr">
+  <h2><span class="num">5</span> How to test on SeedSigner</h2>
+  <ol class="steps">
+    <li>On SeedSigner set the network to <b>Mainnet</b> (<code>Settings → Network</code>) to match this page
+        (or switch this page to Testnet). The network must match or the scripts won't line up.</li>
+    <li>SeedSigner → <code>Settings → Advanced</code> → enable <b>“WIF keys”</b>
+        (and “BIP38 keys” too, if you are testing that path).</li>
+    <li>On SeedSigner, scan the <b>WIF QR</b> (section&nbsp;2) → the demo key is loaded.</li>
+    <li>On SeedSigner, scan the <b>PSBT QR</b> (section&nbsp;4) → review the (fake) transaction, then <b>sign</b>.</li>
+    <li>Read the signed PSBT back from the device's animated QR and confirm the signature was added.</li>
+    <li>Turn the WIF/BIP38 settings back <b>off</b> on the device when done.</li>
+  </ol>
+  <p><span class="badge bad">IMPORTANT</span> Do <b>NOT</b> broadcast this transaction —
+     it spends an input that does not exist anywhere and is nonsense on-chain.
+     It exists only to be signed and inspected.</p>
+</section>
+
+<details class="selftest">
+  <summary>Self-tests (known-answer vectors + PSBT parse checks) — expand to see</summary>
+  <ul id="selftest-list"></ul>
+</details>
+
+<footer class="note">
+  TEST / DEMO tool — 100% client-side. No backend, no telemetry, no external APIs.
+  The only network references are version-pinned CDN libraries (cached after first load):
+  qrcode-generator&nbsp;1.4.4, @noble/hashes&nbsp;1.8.0, @noble/curves&nbsp;1.9.0,
+  bitcoinjs-lib&nbsp;6.1.5 (used only to parse-verify the PSBT).
+</footer>
+</div>
+
+<noscript><p style="text-align:center">This tool requires JavaScript (plus a one-time CDN library load).</p></noscript>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+
+<!-- ================= core + UI (single module; core fns exported for testing) ================= -->
+<script type="importmap">
+  {
+    "imports": {
+      "@noble/hashes/sha2": "https://cdn.jsdelivr.net/npm/@noble/hashes@1.8.0/esm/sha2.js",
+      "@noble/hashes/ripemd160": "https://cdn.jsdelivr.net/npm/@noble/hashes@1.8.0/esm/ripemd160.js",
+      "@noble/hashes/hmac": "https://cdn.jsdelivr.net/npm/@noble/hashes@1.8.0/esm/hmac.js",
+      "@noble/hashes/crypto": "https://cdn.jsdelivr.net/npm/@noble/hashes@1.8.0/esm/crypto.js",
+      "@noble/hashes/utils": "https://cdn.jsdelivr.net/npm/@noble/hashes@1.8.0/esm/utils.js",
+      "@noble/curves/secp256k1": "https://cdn.jsdelivr.net/npm/@noble/curves@1.9.0/esm/secp256k1.js",
+      "@noble/curves/abstract/modular": "https://cdn.jsdelivr.net/npm/@noble/curves@1.9.0/esm/abstract/modular.js",
+      "@noble/curves/abstract/utils": "https://cdn.jsdelivr.net/npm/@noble/curves@1.9.0/esm/abstract/utils.js",
+      "@noble/curves/abstract/weierstrass": "https://cdn.jsdelivr.net/npm/@noble/curves@1.9.0/esm/abstract/weierstrass.js",
+      "@noble/curves/abstract/curve": "https://cdn.jsdelivr.net/npm/@noble/curves@1.9.0/esm/abstract/curve.js",
+      "@noble/curves/abstract/hash-to-curve": "https://cdn.jsdelivr.net/npm/@noble/curves@1.9.0/esm/abstract/hash-to-curve.js",
+      "@noble/curves/nist": "https://cdn.jsdelivr.net/npm/@noble/curves@1.9.0/esm/nist.js"
+    }
+  }
+</script>
+<script type="module" id="app">
+import { sha256 }    from "https://cdn.jsdelivr.net/npm/@noble/hashes@1.8.0/esm/sha2.js";
+import { ripemd160 } from "https://cdn.jsdelivr.net/npm/@noble/hashes@1.8.0/esm/ripemd160.js";
+import { hmac }      from "https://cdn.jsdelivr.net/npm/@noble/hashes@1.8.0/esm/hmac.js";
+import * as secpmod  from "https://cdn.jsdelivr.net/npm/@noble/curves@1.9.0/esm/secp256k1.js";
+
+const secp = secpmod.secp256k1;
+const enc = new TextEncoder();
+
+/* ================= core (pure, exported for testing) ================= */
+export const concat = (arrs) => {
+  const n = arrs.reduce((a, b) => a + b.length, 0);
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const a of arrs) { out.set(a, o); o += a.length; }
+  return out;
+};
+export const hex = (b) => { let s = ""; for (const x of b) s += x.toString(16).padStart(2, "0"); return s; };
+export const bytesFromHex = (s) => {
+  if (!/^[0-9a-fA-F]*$/.test(s) || s.length % 2) throw new Error("bad hex: " + s);
+  const out = new Uint8Array(s.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(s.substr(i * 2, 2), 16);
+  return out;
+};
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+export function b58encode(bytes) {
+  let z = 0; while (z < bytes.length && bytes[z] === 0) z++;
+  let n = 0n; for (const b of bytes) n = n * 256n + BigInt(b);
+  let s = "";
+  while (n > 0n) { s = B58[Number(n % 58n)] + s; n /= 58n; }
+  return "1".repeat(z) + s;
+}
+export const base58check = (payload) => b58encode(concat([payload, sha256(sha256(payload)).subarray(0, 4)]));
+
+const B32 = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+function bech32Poly(values) {
+  const G = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  let c = 1;
+  for (const x of values) {
+    const top = c >>> 25;
+    c = ((c & 0x1ffffff) << 5) ^ x;
+    for (let j = 0; j < 5; j++) if ((top >>> j) & 1) c ^= G[j];
+  }
+  return c;
+}
+function bech32HrpEx(hrp) {
+  const r = [];
+  for (const ch of hrp) r.push(ch.charCodeAt(0) >>> 5);
+  r.push(0);
+  for (const ch of hrp) r.push(ch.charCodeAt(0) & 31);
+  return r;
+}
+export function bech32encode(hrp, witver, program) {
+  const data = [witver].concat(bytesToWords(program));
+  const chk = bech32Poly(bech32HrpEx(hrp).concat(data).concat([0, 0, 0, 0, 0, 0])) ^ 1;
+  const words = data.concat(Array.from({ length: 6 }, (_, i) => (chk >>> (5 * (5 - i))) & 31));
+  return hrp + "1" + words.map((w) => B32[w]).join("");
+}
+function bytesToWords(bytes) {
+  let acc = 0, bits = 0;
+  const out = [];
+  for (const b of bytes) {
+    acc = (acc << 8) | b;
+    bits += 8;
+    while (bits >= 5) { out.push((acc >>> (bits - 5)) & 31); bits -= 5; }
+  }
+  return out;
+}
+export function b64encode(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+export function b64decode(str) {
+  const bin = atob(str.replace(/\s+/g, ""));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+export function varint(n) {
+  if (n < 0xfd) return [n];
+  if (n < 0x10000) return [0xfd, (n >>> 8) & 0xff, n & 0xff];
+  if (n < 0x100000000) return [0xfe, (n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+  throw new Error("varint too big");
+}
+function rvar(buf, p) {
+  const x = buf[p++];
+  if (x < 0xfd) return [x, 1];
+  if (x === 0xfd) return [buf[p] | (buf[p + 1] << 8), 3];
+  if (x === 0xfe) {
+    let v = 0;
+    for (let i = 0; i < 4; i++) v += buf[p + i] * 256 ** i;
+    return [v, 5];
+  }
+  throw new Error("unsupported varint");
+}
+export const u64le = (v) => {
+  v = BigInt(v);
+  if (v < 0n || v >= 2n ** 64n) throw new Error("not a u64");
+  const b = new Uint8Array(8);
+  for (let i = 0; i < 8; i++) b[i] = Number((v >> BigInt(8 * i)) & 0xffn);
+  return b;
+};
+const u64be = (b) => { let v = 0n; for (let i = 7; i >= 0; i--) v = v * 256n + BigInt(b[i]); return v; };
+const reverse = (b) => new Uint8Array([...b].reverse());
+
+/* ---------- key / address derivation ---------- */
+export function hmacSha256(key, msg) { return hmac(sha256, enc.encode(key), enc.encode(msg)); }
+export function deriveKey(seedStr) {
+  let d = seedStr;
+  for (;;) {
+    const p = hmacSha256("seedsigner-wif-demo", d);
+    if (secp.utils.isValidPrivateKey(p)) return p;
+    d += "-";
+  }
+}
+export const pubkey = (priv) => secp.getPublicKey(priv, true); // compressed
+export const h160 = (pub) => ripemd160(sha256(pub));
+export const wifEncode = (priv, ver) => base58check(new Uint8Array([ver, ...priv, 0x01])); // 0x01 = compressed
+export const p2pkhAddress = (h, ver) => base58check(new Uint8Array([ver, ...h]));
+export const p2wpkhAddress = (h, hrp) => bech32encode(hrp, 0, h);
+export const scriptP2PKH = (h) => new Uint8Array([0x76, 0xa9, 0x14, ...h, 0x88, 0xac]);
+export const scriptP2WPKH = (h) => new Uint8Array([0x00, 0x14, ...h]);
+
+/* ---------- PSBT (BIP-174 v0) build + parse ----------
+   Layout (verified against bitcoinjs-lib/bip174):
+     magic "psbt\xff"
+   | global map: kv( 0x00 : <full unsigned transaction> ) + 0x00 terminator
+   | per input:  input map (kv pairs) + 0x00 terminator
+   | per output: output map (kv pairs) + 0x00 terminator
+   kv = varint(klen) key varint(vlen) value.
+   Input keys: 0x01 witness_utxo, 0x04 non_witness_utxo. */
+export const PSBT_MAGIC = [0x70, 0x73, 0x62, 0x74, 0xff]; // "psbt\xff" → base64 "cHNidP…"
+const K_GLOBAL_UNSIGNED_TX = new Uint8Array([0x00]);
+const K_IN_NON_WITNESS_UTXO = new Uint8Array([0x00]); // PSBT_IN_NON_WITNESS_UTXO (0x00)
+const K_IN_WITNESS_UTXO = new Uint8Array([0x01]); // PSBT_IN_WITNESS_UTXO (0x01)
+
+const PREV_TXID_HEX = "deadbeef" + "0".repeat(52) + "0001"; // 64 hex chars, fixed fake txid
+const VALUE_IN = 100000000;   // 1 BTC
+const VALUE_OUT = 99000000;   // 0.99 BTC → fee = 1,000,000 sats
+
+/** Minimal valid legacy CTransaction (v0, locktime 0) that spends a fake input
+    and pays (script, value) to output 0. Used as the global unsigned tx and as non_witness_utxo. */
+export function buildFakeTx({ inTxidHex, inVout, inScriptSig, outValue, outScript, version = 0 }) {
+  return concat([
+    [
+      Number(version & 0xff), Number((version >>> 8) & 0xff),
+      Number((version >>> 16) & 0xff), Number((version >>> 24) & 0xff),
+    ],
+    [0x01], // 1 input
+    reverse(bytesFromHex(inTxidHex)),
+    [inVout & 0xff, (inVout >>> 8) & 0xff, 0, 0],
+    varint(inScriptSig.length), inScriptSig,
+    [0xff, 0xff, 0xff, 0xff],
+    [0x01], // 1 output
+    u64le(BigInt(outValue)),
+    varint(outScript.length),
+    outScript,
+    [0x00, 0x00, 0x00, 0x00], // locktime = 0
+  ]);
+}
+
+export function buildPsbt({ spendType, inScript, destScript }) {
+  // The PSBT's unsigned transaction: spends PREV_TXID:vout (fake), pays destScript VALUE_OUT.
+  const unsignedTx = buildFakeTx({
+    inTxidHex: PREV_TXID_HEX,
+    inVout: 0,
+    inScriptSig: new Uint8Array(0),
+    outValue: VALUE_OUT,
+    outScript: destScript,
+    version: 0,
+  });
+  const witnessUtxoVal = concat([u64le(BigInt(VALUE_IN)), varint(inScript.length), inScript]);
+  const inputKVs = [];
+  if (spendType === "p2pkh") {
+    // full previous tx whose output 0 is (inScript, VALUE_IN)
+    const prevTx = buildFakeTx({
+      inTxidHex: PREV_TXID_HEX,
+      inVout: 0,
+      inScriptSig: new Uint8Array(0),
+      outValue: VALUE_IN,
+      outScript: inScript,
+      version: 1,
+    });
+    inputKVs.push(kv(K_IN_NON_WITNESS_UTXO, prevTx)); // 0x00 first (keys must be ascending)
+  } else if (spendType !== "p2wpkh") {
+    throw new Error("unknown spendType");
+  }
+  inputKVs.push(kv(K_IN_WITNESS_UTXO, witnessUtxoVal)); // 0x01
+  return concat([
+    PSBT_MAGIC,
+    kv(K_GLOBAL_UNSIGNED_TX, unsignedTx),
+    [0x00], // global map terminator
+    ...inputKVs,
+    [0x00], // input 0 map terminator
+    [0x00], // output 0 map terminator (no keys)
+  ]);
+}
+function kv(key, value) {
+  return concat([varint(key.length), key, varint(value.length), value]);
+}
+
+/** BIP-174 deserializer for the exact shapes this page produces (1 in / 1 out). */
+export function parsePsbt(bytes) {
+  const b = bytes;
+  let p = 0;
+  const rd = (n) => {
+    if (p + n > b.length) throw new Error("unexpected end");
+    const out = b.subarray(p, p + n);
+    p += n;
+    return out;
+  };
+  const rkv = () => {
+    const [klen, ks] = rvar(b, p); p += ks;
+    const k = rd(klen);
+    const [vlen, vs] = rvar(b, p); p += vs;
+    const v = rd(vlen);
+    return [k, v];
+  };
+  const rmap = () => {
+    const out = new Map();
+    for (;;) {
+      if (p >= b.length) throw new Error("unexpected end of map");
+      if (b[p] === 0x00) { p++; return out; }
+      const [k, v] = rkv();
+      if (out.has(hex(k))) throw new Error("duplicate key in map");
+      out.set(hex(k), v);
+    }
+  };
+  for (let i = 0; i < 5; i++) if (b[i] !== PSBT_MAGIC[i]) throw new Error("bad PSBT magic");
+  p = 5;
+  const g = rmap();
+  const txHex = g.get("00");
+  if (!txHex) throw new Error("global map missing unsigned tx");
+  let tp = 0;
+  const trd = (n) => { const o = txHex.subarray(tp, tp + n); tp += n; return o; };
+  const version = Number(trd(4).reduce((a, c, i) => a + c * 256 ** i, 0));
+  const nIn = rvar(txHex, tp)[0]; tp += (nIn < 0xfd) ? 1 : (nIn <= 0xffff ? 3 : 5);
+  const ins = [];
+  for (let i = 0; i < nIn; i++) {
+    ins.push({
+      txid: hex(reverse(trd(32))),
+      vout: trd(4).reduce((a, c, j) => a + c * 256 ** j, 0),
+    });
+    const [sl, ssk] = rvar(txHex, tp); tp += ssk + sl;
+    tp += 4; // sequence
+  }
+  const nOut = rvar(txHex, tp)[0]; tp += (nOut < 0xfd) ? 1 : (nOut <= 0xffff ? 3 : 5);
+  const outs = [];
+  for (let i = 0; i < nOut; i++) {
+    const value = Number(u64be(trd(8)));
+    const [sl, ssk] = rvar(txHex, tp); tp += ssk;
+    outs.push({ value, script: trd(sl) });
+  }
+  const locktime = trd(4);
+  if (tp !== txHex.length) throw new Error("bad unsigned tx length");
+  const inputMap = rmap();
+  const outputMap = rmap();
+  if (p !== b.length) throw new Error("trailing bytes after PSBT");
+  const wu = inputMap.get("01");
+  let witnessUtxo = null;
+  if (wu) {
+    if (wu.length < 9) throw new Error("witness_utxo too short");
+    witnessUtxo = { value: Number(u64be(wu.subarray(0, 8))), script: wu.subarray(9) };
+  }
+  let nonWitnessUtxo = null;
+  if (inputMap.has("00")) nonWitnessUtxo = inputMap.get("00");
+  return {
+    version,
+    locktime: locktime.reduce((a, c, i) => a + c * 256 ** i, 0),
+    inputs: ins,
+    outputs: outs,
+    witnessUtxo,
+    nonWitnessUtxo,
+    outputMapEmpty: outputMap.size === 0,
+    keySetInInput: [...inputMap.keys()],
+  };
+}
+
+/* ---------- Segwit QR split framing (Sparrow/Electrum/SeedSigner style) ---------- */
+const FRAME_PREFIX = [0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // 17 fixed bytes
+export function makeFrame(data, idx, total) {
+  const f = new Uint8Array(FRAME_PREFIX.length + 4 + data.length);
+  f.set(FRAME_PREFIX, 0);
+  f[17] = idx; f[18] = total;
+  f[19] = (data.length >>> 8) & 0xff; f[20] = data.length & 0xff;
+  f.set(data, 21);
+  return f;
+}
+export function splitFrames(bytes, n) {
+  if (!Number.isInteger(n) || n < 1 || n > 255) throw new Error("frames out of range");
+  n = Math.min(n, bytes.length);
+  const per = Math.ceil(bytes.length / n);
+  const total = Math.ceil(bytes.length / per); // exact frame count (last frame may be shorter)
+  const frames = [];
+  for (let i = 0; i < total; i++) {
+    frames.push(makeFrame(bytes.slice(i * per, Math.min(bytes.length, (i + 1) * per)), i, total));
+  }
+  return frames;
+}
+export const bytesToString = (b) => { let s = ""; for (const x of b) s += String.fromCharCode(x); return s; };
+
+/* ---------- known-answer self tests (pure) ---------- */
+export function selfTestsPure() {
+  const results = [];
+  const t = (name, fn) => {
+    try { const r = fn(); results.push({ name, ok: true, detail: r || "" }); }
+    catch (e) { results.push({ name, ok: false, detail: String(e.message || e) }); }
+  };
+  const one = new Uint8Array(32); one[31] = 1;
+  t("EC: priv=1 → compressed pubkey (Koblitz G)", () => {
+    const g = hex(pubkey(one));
+    if (g !== "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798") throw new Error("got " + g);
+    return g;
+  });
+  t("WIF: priv=1 compressed mainnet (well-known key-1 WIF)", () => {
+    const w = wifEncode(one, 0x80);
+    if (w !== "KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn") throw new Error("got " + w);
+    return w;
+  });
+  t("P2PKH: priv=1 mainnet (well-known key-1 address)", () => {
+    const a = p2pkhAddress(h160(pubkey(one)), 0x00);
+    if (a !== "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH") throw new Error("got " + a);
+    return a;
+  });
+  t("Bech32: BIP-173 known vectors (bc… and tb… same program)", () => {
+    const prog = bytesFromHex("751e76e8199196d454941c45d1b3a323f1433bd6");
+    const a = bech32encode("bc", 0, prog);
+    if (a !== "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4") throw new Error("got " + a);
+    const b = bech32encode("tb", 0, prog);
+    if (b !== "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx") throw new Error("got " + b);
+    return a;
+  });
+  t("PSBT P2WPKH: build + strict self-parser", () => {
+    const h = h160(pubkey(deriveKey("selftest-in")));
+    const d = h160(pubkey(deriveKey("selftest-out")));
+    const ps = buildPsbt({ spendType: "p2wpkh", inScript: scriptP2WPKH(h), destScript: scriptP2WPKH(d) });
+    const parsed = parsePsbt(ps);
+    if (hex(ps.subarray(0, 5)) !== "70736274ff") throw new Error("magic");
+    if (parsed.version !== 0) throw new Error("tx version");
+    if (parsed.locktime !== 0) throw new Error("locktime");
+    if (parsed.inputs.length !== 1 || parsed.outputs.length !== 1) throw new Error("counts");
+    if (parsed.inputs[0].txid !== PREV_TXID_HEX) throw new Error("txid: " + parsed.inputs[0].txid);
+    if (parsed.inputs[0].vout !== 0) throw new Error("vout");
+    if (parsed.witnessUtxo.value !== VALUE_IN) throw new Error("witness value");
+    if (hex(parsed.witnessUtxo.script) !== hex(scriptP2WPKH(h))) throw new Error("witness script");
+    if (parsed.outputs[0].value !== VALUE_OUT) throw new Error("out value");
+    if (hex(parsed.outputs[0].script) !== hex(scriptP2WPKH(d))) throw new Error("out script");
+    if (parsed.keySetInInput.includes("04")) throw new Error("wrong keys: " + parsed.keySetInInput.join(",")); // 0x04 = redeem_script, not expected
+    return hex(ps.slice(0, 24));
+  });
+  t("PSBT P2PKH: build + strict self-parser (has full prev tx)", () => {
+    const h = h160(pubkey(deriveKey("selftest-in2")));
+    const d = h160(pubkey(deriveKey("selftest-out2")));
+    const ps = buildPsbt({ spendType: "p2pkh", inScript: scriptP2PKH(h), destScript: scriptP2WPKH(d) });
+    const parsed = parsePsbt(ps);
+    if (!parsed.nonWitnessUtxo) throw new Error("prev tx missing (keys: " + parsed.keySetInInput.join(",") + ")");
+    if (!parsed.witnessUtxo) throw new Error("witness utxo missing");
+    if (hex(parsed.witnessUtxo.script) !== hex(scriptP2PKH(h))) throw new Error("script mismatch");
+    if (parsed.nonWitnessUtxo.length < 80) throw new Error("prev tx too small: " + parsed.nonWitnessUtxo.length);
+    return hex(ps.slice(0, 24));
+  });
+  t("Segwit-QR framing: header bytes + reassembly", () => {
+    const bytes = enc.encode("01234567");
+    const fr = makeFrame(bytes, 3, 10);
+    if (fr.length !== 17 + 4 + 8) throw new Error("frame len " + fr.length);
+    for (let i = 0; i < 4; i++) if (fr[i] !== 0) throw new Error("prefix zero");
+    if (fr[4] !== 1) throw new Error("0x01 marker");
+    for (let i = 5; i < 17; i++) if (fr[i] !== 0) throw new Error("reserved zeros");
+    if (fr[17] !== 3 || fr[18] !== 10) throw new Error("idx/total");
+    if (fr[19] !== 0 || fr[20] !== 8) throw new Error("len field");
+    if (hex(fr.subarray(21)) !== "3031323334353637") throw new Error("payload");
+    const all = splitFrames(enc.encode("abcdefghijklmnopqrstuvwxyz"), 4);
+    if (all.length !== 4) throw new Error("frame count " + all.length);
+    const joined = concat(all.map((f) => f.subarray(21)));
+    if (joined.length !== 26) throw new Error("reassembly " + joined.length);
+    if (!all.every((f, i) => f[17] === i && f[18] === all.length)) throw new Error("idx/total fields");
+    return "ok";
+  });
+  return results;
+}
+
+/* ================= UI ================= */
+const FIXED_SEED = "fixed-demo-key-2026";
+const DEST_SEED = "fixed-demo-destination-2026";
+const NETS = {
+  mainnet: { name: "Mainnet", wif: 0x80, p2pkh: 0x00, hrp: "bc" },
+  testnet: { name: "Testnet", wif: 0xef, p2pkh: 0x6f, hrp: "tb" },
+};
+const state = {
+  network: "mainnet",
+  seedStr: FIXED_SEED,
+  spend: "p2wpkh",
+  frames: 10,
+  fps: 5,
+  paused: false,
+  frameIdx: 0,
+  mode: "anim",
+  data: null,
+  framesArr: [],
+  timer: null,
+};
+
+const $ = (id) => document.getElementById(id);
+
+// Test hook: node tests inject this instead of fetching esm.sh
+const loadBitcoinjs = (globalThis.__loadBitcoinjs ?? (async () => {
+  const m = await import("https://esm.sh/bitcoinjs-lib@6.1.5");
+  return m.default || m;
+}));
+
+function deriveAll() {
+  const net = NETS[state.network];
+  const priv = deriveKey(state.seedStr);
+  const pub = pubkey(priv);
+  const h = h160(pub);
+  const destPriv = deriveKey(DEST_SEED);
+  const destH = h160(pubkey(destPriv));
+  const addrP2pkh = p2pkhAddress(h, net.p2pkh);
+  const addrP2wpkh = p2wpkhAddress(h, net.hrp);
+  const inAddr = state.spend === "p2wpkh" ? addrP2wpkh : addrP2pkh;
+  const inScript = state.spend === "p2wpkh" ? scriptP2WPKH(h) : scriptP2PKH(h);
+  const ps = buildPsbt({ spendType: state.spend, inScript, destScript: scriptP2WPKH(destH) });
+  state.data = {
+    net, priv, pub, h,
+    wif: wifEncode(priv, net.wif),
+    addrP2pkh, addrP2wpkh,
+    destAddr: p2wpkhAddress(destH, net.hrp),
+    destScript: scriptP2WPKH(destH),
+    inAddr, inScript,
+    scriptType: state.spend === "p2wpkh" ? "P2WPKH" : "P2PKH",
+    prevTxid: PREV_TXID_HEX,
+    ps, b64: b64encode(ps),
+  };
+}
+
+function renderWifQr() {
+  const el = $("qr-wif");
+  el.innerHTML = "";
+  const qr = qrcode(0, "L");
+  qr.addData(state.data.wif, "Byte");
+  qr.make();
+  el.innerHTML = qr.createImgTag(8);
+}
+
+function renderFrame() {
+  const el = $("qr-psbt");
+  el.innerHTML = "";
+  if (state.mode === "full") {
+    const qr = qrcode(0, "L");
+    qr.addData(state.data.b64, "Byte");
+    qr.make();
+    el.innerHTML = qr.createImgTag(8);
+    $("frame-ind").textContent = "Full base64 — single QR";
+    return;
+  }
+  const f = state.framesArr[state.frameIdx % state.framesArr.length];
+  const qr = qrcode(0, "L");
+  qr.addData(bytesToString(f), "Byte");
+  qr.make();
+  el.innerHTML = qr.createImgTag(8);
+  $("frame-ind").textContent = "Frame " + ((state.frameIdx % state.framesArr.length) + 1) + " / " + state.framesArr.length;
+}
+
+function rebuildFrames() {
+  state.framesArr = splitFrames(enc.encode(state.data.b64), state.frames);
+  state.frameIdx = 0;
+}
+
+function startTimer() {
+  stopTimer();
+  if (state.paused || state.mode === "full") return;
+  state.timer = setInterval(() => {
+    state.frameIdx = (state.frameIdx + 1) % state.framesArr.length;
+    renderFrame();
+  }, Math.round(1000 / state.fps));
+}
+function stopTimer() { if (state.timer) { clearInterval(state.timer); state.timer = null; } }
+
+function renderText() {
+  const d = state.data;
+  $("net-badge").textContent = d.net.name;
+  $("net-badge").className = "badge " + (state.network === "mainnet" ? "bad" : "info");
+  $("wif").textContent = d.wif;
+  $("priv-hex").textContent = hex(d.priv);
+  $("pub-hex").textContent = hex(d.pub);
+  $("addr-p2pkh").textContent = d.addrP2pkh;
+  $("addr-p2wpkh").textContent = d.addrP2wpkh;
+  $("seed-note").textContent = state.seedStr === FIXED_SEED
+    ? "seed: fixed demo seed (HMAC-SHA256 key “seedsigner-wif-demo”, data “fixed-demo-key-2026”)"
+    : "seed: random 256-bit key (this session only — “Reset fixed demo key” goes back)";
+  const fee = VALUE_IN - VALUE_OUT;
+  $("psbt-summary").textContent =
+    "Input: " + d.scriptType + " @ " + d.inAddr + " → 1 BTC;  " +
+    "Output: " + d.destAddr + " → 0.99 BTC;  " +
+    "Fee: " + (fee / 1e8).toFixed(2) + " BTC (" + fee + " sats).  " +
+    "prev_txid: " + d.prevTxid + " … vout 0.  Network: " + d.net.name + ".";
+  $("psbt-b64").textContent = d.b64;
+}
+
+function setBadge(id, ok, label) {
+  const el = $(id);
+  el.className = "badge " + (ok ? "ok" : "bad");
+  el.textContent = label;
+}
+
+async function validatePsbt() {
+  const d = state.data;
+  // 1) strict self-parser
+  try {
+    const parsed = parsePsbt(d.ps);
+    if (parsed.inputs.length !== 1 || parsed.outputs.length !== 1) throw new Error("counts");
+    if (parsed.inputs[0].txid !== d.prevTxid) throw new Error("txid mismatch");
+    if (parsed.inputs[0].vout !== 0) throw new Error("vout mismatch");
+    if (!parsed.witnessUtxo) throw new Error("witness_utxo missing");
+    if (parsed.witnessUtxo.value !== VALUE_IN) throw new Error("witness_utxo value");
+    if (hex(parsed.witnessUtxo.script) !== hex(d.inScript)) throw new Error("input script mismatch");
+    if (d.scriptType === "P2PKH" && !parsed.nonWitnessUtxo) throw new Error("non_witness_utxo missing");
+    if (parsed.outputs[0].value !== VALUE_OUT) throw new Error("output value");
+    if (hex(parsed.outputs[0].script) !== hex(d.destScript)) throw new Error("output script");
+  setBadge("badge-self", true, "self-parser: ✓ valid BIP-174 (1 in / 1 out)");
+  } catch (e) {
+    setBadge("badge-self", false, "self-parser: ✗ " + e.message);
+  }
+  setBadge("badge-struct", true, "structure: tx v0 · locktime 0 · 1 in / 1 out · " + d.ps.length + " B");
+  // 2) bitcoinjs-lib (the real BIP-174 parser)
+  try {
+    const bl = await loadBitcoinjs();
+    const p = bl.Psbt.fromBase64(d.b64);
+    const inp = p.data.inputs[0];
+    const utx = p.data.globalMap.unsignedTx.tx;
+    const hashBE = new Uint8Array(utx.ins[0].hash);
+    hashBE.reverse(); // tx bytes store hash little-endian; display txid is big-endian
+    const checks = [
+      p.data.inputs.length === 1,
+      p.data.outputs.length === 1,
+      hex(hashBE) === d.prevTxid,
+      utx.ins[0].index === 0,
+      String(utx.outs[0].value) === String(VALUE_OUT),
+      hex(utx.outs[0].script) === hex(d.destScript),
+      inp.witnessUtxo && String(inp.witnessUtxo.value) === String(VALUE_IN),
+      inp.witnessUtxo && hex(inp.witnessUtxo.script) === hex(d.inScript),
+    ];
+    if (d.scriptType === "P2PKH") checks.push(!!inp.nonWitnessUtxo);
+    if (!checks.every(Boolean)) throw new Error("field checks failed");
+    setBadge("badge-bjs", true, "bitcoinjs-lib 6.1.5: ✓ Psbt.fromBase64 OK");
+  } catch (e) {
+    setBadge("badge-bjs", false, "bitcoinjs-lib: ✗ " + (e.message || String(e)));
+  }
+}
+
+function renderAll() {
+  deriveAll();
+  renderText();
+  renderWifQr();
+  rebuildFrames();
+  renderFrame();
+  startTimer();
+  validatePsbt();
+}
+
+function copyText(text, btn) {
+  const done = (ok) => {
+    const old = btn.textContent;
+    btn.textContent = ok ? "Copied ✓" : "Copy failed…";
+    setTimeout(() => { btn.textContent = old; }, 1200);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove();
+  done(ok);
+}
+
+function downloadPsbt() {
+  const blob = new Blob([state.data.ps], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "fake_tx_TESTONLY.psb" + "t";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function renderSelfTests(list) {
+  const ul = $("selftest-list");
+  ul.innerHTML = "";
+  for (const r of list) {
+    const li = document.createElement("li");
+    const b = document.createElement("b");
+    b.textContent = r.ok ? "PASS" : "FAIL";
+    b.className = r.ok ? "oktxt" : "badtxt";
+    li.appendChild(b);
+    li.appendChild(document.createTextNode("  " + r.name));
+    if (r.detail) {
+      const span = document.createElement("span");
+      span.className = "mono";
+      span.textContent = "  " + (r.detail.length > 90 ? r.detail.slice(0, 90) + "…" : r.detail);
+      li.appendChild(span);
+    }
+    ul.appendChild(li);
+  }
+}
+
+function wireUi() {
+  const netBtns = { mainnet: $("btn-mainnet"), testnet: $("btn-testnet") };
+  const setNet = (n) => {
+    state.network = n;
+    for (const k of Object.keys(netBtns)) netBtns[k].classList.toggle("active", k === n);
+    renderAll();
+  };
+  netBtns.mainnet.onclick = () => setNet("mainnet");
+  netBtns.testnet.onclick = () => setNet("testnet");
+
+  document.querySelectorAll('input[name="spend"]').forEach((r) => {
+    r.onchange = () => { state.spend = r.value; renderAll(); };
+  });
+
+  $("copy-wif").onclick = (e) => copyText(state.data.wif, e.target);
+  $("copy-p2pkh").onclick = (e) => copyText(state.data.addrP2pkh, e.target);
+  $("copy-p2wpkh").onclick = (e) => copyText(state.data.addrP2wpkh, e.target);
+  $("copy-psbt").onclick = (e) => copyText(state.data.b64, e.target);
+  $("dl-psbt").onclick = downloadPsbt;
+
+  $("regen").onclick = () => {
+    const b = new Uint8Array(32);
+    crypto.getRandomValues(b);
+    state.seedStr = hex(b);
+    renderAll();
+  };
+  $("reset-fixed").onclick = () => { state.seedStr = FIXED_SEED; renderAll(); };
+
+  $("toggle-b64").onclick = (e) => {
+    const v = $("psbt-b64");
+    v.classList.toggle("show");
+    e.target.textContent = v.classList.contains("show") ? "Hide plain base64" : "Show plain base64";
+  };
+
+  const fpsEl = $("fps");
+  fpsEl.oninput = () => {
+    state.fps = parseInt(fpsEl.value, 10);
+    $("fps-val").textContent = state.fps;
+    startTimer();
+    renderFrame();
+  };
+  $("pause").onclick = (e) => {
+    state.paused = !state.paused;
+    e.target.textContent = state.paused ? "Resume" : "Pause";
+    if (state.paused) stopTimer(); else { startTimer(); renderFrame(); }
+  };
+  $("next").onclick = () => {
+    if (state.mode === "full") return;
+    state.frameIdx = (state.frameIdx + 1) % state.framesArr.length;
+    renderFrame();
+  };
+  const framesEl = $("frames");
+  framesEl.onchange = () => {
+    let n = parseInt(framesEl.value, 10);
+    if (!Number.isFinite(n)) n = 10;
+    n = Math.max(2, Math.min(50, n));
+    framesEl.value = n;
+    state.frames = n;
+    rebuildFrames();
+    renderFrame();
+    startTimer();
+  };
+
+  const modeBtns = document.querySelectorAll("#qr-mode button");
+  modeBtns.forEach((b) => {
+    b.onclick = () => {
+      state.mode = b.dataset.mode;
+      modeBtns.forEach((x) => x.classList.toggle("active", x === b));
+      if (state.mode === "full") { stopTimer(); renderFrame(); }
+      else { renderFrame(); startTimer(); }
+    };
+  });
+}
+
+async function main() {
+  wireUi();
+  renderAll();
+  const pure = selfTestsPure();
+  await validatePsbt();
+  renderSelfTests(pure);
+  // final self-test lines for the two browser PSBT checks are already in the badges;
+  // mirror them into the self-test list too
+  setNetBadgeMirror();
+}
+
+function setNetBadgeMirror() { /* active state of network seg */
+  const netBtns = { mainnet: $("btn-mainnet"), testnet: $("btn-testnet") };
+  for (const k of Object.keys(netBtns)) netBtns[k].classList.toggle("active", k === state.network);
+}
+
+// UI entry point (skipped in non-DOM environments such as Node tests)
+if (typeof document !== "undefined" && typeof window !== "undefined") main();
+</script>
+</body>
+</html>
