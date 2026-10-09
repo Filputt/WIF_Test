@@ -150,7 +150,7 @@ console.log("== E. PSBT QR formats (SeedSigner-recognized) ==");
 {
   // Canonical base64 of the P2WPKH PSBT, exactly as the page emits it.
   const b64 = app.b64encode(app.buildPsbt({ spendType: "p2wpkh", inScript: IN_WPKH, destScript: DEST_WPKH }));
-  ok("psbt b64 is canonical (no stray chars)", /^[A-Za-z0-9+/=]+$/.test(b64) && b64.length % 4 === 0 || b64.endsWith("==") ? true : false, b64.slice(-8));
+  ok("psbt b64 is canonical (no stray chars)", /^[A-Za-z0-9+/=]+$/.test(b64) && b64.length % 4 === 0, b64.slice(-8));
   const SEEDSIGNER_RE = /^p(\d+)of(\d+) ([A-Za-z0-9+\/=]+)$/; // decode_qr.py: detect_segment_type
   const frames10 = app.specterFrames(b64, 10);
   ok("every pNofM frame matches SeedSigner's detector regex", frames10.every((f) => SEEDSIGNER_RE.test(f)),

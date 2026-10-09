@@ -370,7 +370,7 @@ export const u64le = (v) => {
   for (let i = 0; i < 8; i++) b[i] = Number((v >> BigInt(8 * i)) & 0xffn);
   return b;
 };
-const u64be = (b) => { let v = 0n; for (let i = 7; i >= 0; i--) v = v * 256n + BigInt(b[i]); return v; };
+const u64leDecode = (b) => { let v = 0n; for (let i = 7; i >= 0; i--) v = v * 256n + BigInt(b[i]); return v; };
 const reverse = (b) => new Uint8Array([...b].reverse());
 
 /* ---------- key / address derivation ---------- */
@@ -398,7 +398,7 @@ export const scriptP2WPKH = (h) => new Uint8Array([0x00, 0x14, ...h]);
    | per input:  input map (kv pairs) + 0x00 terminator
    | per output: output map (kv pairs) + 0x00 terminator
    kv = varint(klen) key varint(vlen) value.
-   Input keys: 0x01 witness_utxo, 0x04 non_witness_utxo. */
+   Input keys: 0x00 non_witness_utxo, 0x01 witness_utxo. */
 export const PSBT_MAGIC = [0x70, 0x73, 0x62, 0x74, 0xff]; // "psbt\xff" → base64 "cHNidP…"
 const K_GLOBAL_UNSIGNED_TX = new Uint8Array([0x00]);
 const K_IN_NON_WITNESS_UTXO = new Uint8Array([0x00]); // PSBT_IN_NON_WITNESS_UTXO (0x00)
@@ -517,7 +517,7 @@ export function parsePsbt(bytes) {
   const nOut = rvar(txHex, tp)[0]; tp += (nOut < 0xfd) ? 1 : (nOut <= 0xffff ? 3 : 5);
   const outs = [];
   for (let i = 0; i < nOut; i++) {
-    const value = Number(u64be(trd(8)));
+    const value = Number(u64leDecode(trd(8)));
     const [sl, ssk] = rvar(txHex, tp); tp += ssk;
     outs.push({ value, script: trd(sl) });
   }
@@ -530,7 +530,7 @@ export function parsePsbt(bytes) {
   let witnessUtxo = null;
   if (wu) {
     if (wu.length < 9) throw new Error("witness_utxo too short");
-    witnessUtxo = { value: Number(u64be(wu.subarray(0, 8))), script: wu.subarray(9) };
+    witnessUtxo = { value: Number(u64leDecode(wu.subarray(0, 8))), script: wu.subarray(9) };
   }
   let nonWitnessUtxo = null;
   if (inputMap.has("00")) nonWitnessUtxo = inputMap.get("00");

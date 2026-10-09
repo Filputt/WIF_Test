@@ -126,6 +126,7 @@ python3 test-seedsigner.py /tmp/frames.json  # expected: "ALL SEEDSIGNER-DECODER
 | `emit-frames.mjs`   | Emits the exact PSBT-QR payloads the page renders, as JSON, for external verification. |
 | `test-seedsigner.py`| Simulates SeedSigner's real QR-decode path (detector regex + reassembly + `embit` PSBT.parse). |
 | `package.json` / `package-lock.json` | Pinned dev-deps used **only by the test harness** (not the page). |
+| `LICENSE`           | MIT license text.                                                |
 | `node_modules/`     | Installed by `npm install` (test-only; git-ignored). The page never reads it. |
 
 ---
@@ -209,8 +210,15 @@ detector regex and PSBT parser.)
 
 **Test harness (Node, dev-deps via `npm install`):**
 `bitcoinjs-lib@7.0.2`, `bip174@3.0.1`, `@noble/hashes`, `@noble/curves`,
-`bs58check`, `bech32`. The page itself never reads `node_modules` — those
-packages exist **only** so `test.mjs` can cross-check the same PSBT bytes.
+`bs58check`, `bech32`, `puppeteer-core` (optional browser smoke test). The page
+itself never reads `node_modules` — those packages exist **only** so `test.mjs`
+can cross-check the same PSBT bytes.
+
+## Acknowledgements
+
+Inspired by [testqrs.com](https://testqrs.com/) — a handy test-QR generator
+that showed the value of having safe, fake data for exercising air-gapped
+signer workflows.
 
 ## License
 

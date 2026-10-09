@@ -1,4 +1,13 @@
 {
+  "name": "seedsigner-wif-psbt-testdata",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fake/test-only data generator for the SeedSigner WIF-key PSBT signing workflow",
+  "scripts": {
+    "test": "node test.mjs",
+    "test:browser": "node test-browser.mjs",
+    "emit-frames": "node emit-frames.mjs"
+  },
   "devDependencies": {
     "@noble/curves": "^1.9.0",
     "@noble/hashes": "^1.8.0",

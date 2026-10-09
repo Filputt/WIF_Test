@@ -1,5 +1,6 @@
 node_modules/
 .tmp_app_extracted.mjs
+.tmp_emit.mjs
 *.log
 .DS_Store
 frames.json
