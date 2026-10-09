@@ -214,9 +214,10 @@ packages exist **only** so `test.mjs` can cross-check the same PSBT bytes.
 
 ## License
 
-**No license file is included.** By default that means *all rights reserved*:
-anyone is free to read and use this code for their own testing, but it may
-not legally be redistributed under other terms. This project is provided
-as-is for testing purposes only — it is not financial advice and not a
-product. (Happy to accept a standard `LICENSE`, e.g. MIT, if that's
-preferable.)
+**MIT licensed** (see [`LICENSE`](LICENSE)) — a very permissive license:
+you may use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies for any purpose, provided the copyright notice and permission
+notice are kept. No copyleft, no warranty of any kind.
+
+This project is provided as-is for **testing only** — it is not financial
+advice and is not a product.
