@@ -1,18 +1,35 @@
-# TEST / DEMO — SeedSigner WIF + PSBT test-data generator
+# SeedSigner WIF + PSBT test-data generator
 
-**⚠️ TEST ONLY. Nothing here is real money, a real key, or a live address.**
-This page generates *fake* data (an ephemeral private key + a synthetic
-unsigned transaction) so you can exercise the **SeedSigner "WIF key
-signing"** workflow — **scan WIF → scan PSBT → review → sign** — without
-any private key, funds, or online dependency beyond pinned CDN libraries.
+> **⚠️ TEST ONLY — everything here is fake.** No real money, no real keys,
+> no live addresses. The tools below generate *synthetic* test data so you
+> can exercise a specific SeedSigner workflow end-to-end — without a real
+> private key, real funds, or any online dependency beyond pinned CDN
+> libraries. The generated WIF, addresses, and transaction are **not yours**;
+> do **not** send coins to them, do **not** keep the WIF, and do **not** use
+> the PSBT in a real wallet. It is deliberately unspendable and meaningless
+> on-chain (fake UTXO referencing a fake `deadbeef…` previous transaction).
 
-> The generated WIF / addresses **are not yours**. Do **not** send coins
-> to the destination address, do **not** keep the WIF, and do **not**
-> use the PSBT in any real wallet or on any live (or regtest/simnet)
-> blockchain. It is designed to be **unspendable and meaningless** on-chain
-> (fake UTXO, fake `deadbeef…` prev-txid).
+## 30-second background
 
----
+**SeedSigner** is an open-source offline hardware wallet: you point its
+camera at a QR code, it reviews what you're about to sign, you enter your PIN,
+and it produces a signature — all while air-gapped from your computer and the
+internet. One of its key entry points is the **"WIF key signing"** workflow:
+
+1. scan a **WIF** — *Wallet Import Format*, a text encoding of a Bitcoin
+   private key;
+2. scan a **PSBT** — *Partially Signed Bitcoin Transaction* (BIP-174), the
+   industry-standard container for handing an unsigned transaction to a
+   signer;
+3. review, then sign.
+
+Testing that flow requires a *valid, internally-consistent* trio — a WIF, a
+transaction it can actually sign, and QR codes a real scanner will accept —
+without real keys or coins on the table. **This project provides exactly that:**
+a single self-contained HTML page that derives a deterministic *demo* key,
+builds a structurally-valid BIP-174 PSBT that only the demo key can sign,
+renders the QR codes in the exact formats SeedSigner's scanner recognizes,
+and live-verifies all of it against independent reference libraries.
 
 ## What it does
 
@@ -76,10 +93,11 @@ npm install        # installs pinned dev deps (bitcoinjs-lib, bip174, @noble/*, 
 node test.mjs      # expected: "RESULT: 48 passed, 0 failed"
 ```
 
-A headless-Chromium smoke test (optional, needs a `chromium` binary on PATH):
+A headless-Chromium smoke test (optional — install a Chromium/Chrome binary,
+then either let puppeteer find it or point `CHROMIUM_BIN` at it):
 
 ```
-node test-browser.mjs   # expected: "BROWSER TEST: OK"
+CHROMIUM_BIN=/usr/bin/chromium node test-browser.mjs   # expected: "BROWSER TEST: OK"
 ```
 
 ### Prove the PSBT-QR frames are accepted by SeedSigner's real decoder
@@ -102,13 +120,15 @@ python3 test-seedsigner.py /tmp/frames.json  # expected: "ALL SEEDSIGNER-DECODER
 
 ## Files
 
-| File                | Purpose                                                        |
-|---------------------|----------------------------------------------------------------|
-| `index.html`        | The single self-contained page (HTML + CSS + one ES module).   |
-| `test.mjs`          | Node cross-validation harness (47 checks, 0 expected failures).|
-| `test-browser.mjs`  | Headless-Chromium smoke test of the rendered page (optional).  |
-| `package.json`      | Pinned dev-deps used **only by the test harness** (not the page). |
-| `node_modules/`     | Installed by `npm install` (test-only). The page itself does not use it. |
+| File                | Purpose                                                          |
+|---------------------|------------------------------------------------------------------|
+| `index.html`        | The whole app: one self-contained HTML file (CSS + one ES module, CDN libraries). |
+| `test.mjs`          | Node cross-validation harness (48 checks, 0 expected failures).   |
+| `test-browser.mjs`  | Headless-Chromium smoke test of the rendered page (optional).     |
+| `emit-frames.mjs`   | Emits the exact PSBT-QR payloads the page renders, as JSON, for external verification. |
+| `test-seedsigner.py`| Simulates SeedSigner's real QR-decode path (detector regex + reassembly + `embit` PSBT.parse). |
+| `package.json` / `package-lock.json` | Pinned dev-deps used **only by the test harness** (not the page). |
+| `node_modules/`     | Installed by `npm install` (test-only; git-ignored). The page never reads it. |
 
 ---
 
@@ -137,14 +157,14 @@ key `PSBT_GLOBAL_UNSIGNED_TX (0x00)`. Then, per BIP-174:
 Key/value entries use bitcoin's **varint** for length. The whole thing is
 base64-encoded to the `cHNidP8…` form.
 
-### PSBT QR formatting (SeedSigner-compatible)
+### PSBT QR formatting (why the "pNofM" format?)
 
-> **Note:** the earlier revision emitted an *invented* 21-byte binary-frame
-> "Segwit" header. That format is **not** one SeedSigner recognizes, which
-> causes its `QR code is invalid or data format is not yet supported` error.
-> It is gone. The PSBT is now presented in the two PSBT input formats that
-> SeedSigner's scanner (`src/seedsigner/models/decode_qr.py`) explicitly
-> accepts:
+A common pitfall — and the one this project existed to catch: **QR framing
+is format-specific**. A PSBT framed in a format SeedSigner doesn't know about
+is rejected with the generic *"QR code is invalid or the data format is not
+yet supported"* message. Its scanner
+(`src/seedsigner/models/decode_qr.py` → `detect_segment_type`) accepts PSBTs
+in exactly a few known shapes, so this page emits only the two it recognizes:
 
 - **Specter Desktop animated base64 segments (default).** The PSBT's base64
   string is sliced into `N` contiguous pieces; the `i`-th QR encodes the
@@ -159,10 +179,13 @@ base64-encoded to the `cHNidP8…` form.
   base64 before `base64 → PSBT`. Our slices are verbatim sub-strings of the
   same valid base64 shown on the page, so the join is byte-identical.
 - **Full single QR (base64).** One QR holding the whole `cHNidP8…` base64
-  string. This is the `PSBT__BASE64` path.
+  string — the `PSBT__BASE64` path. A handy fallback if the animated QR is
+  flaky to photograph.
 
 The `FPS` + `N` controls only change how the *frames* are presented as a
 slideshow; the underlying PSBT byte-string is identical either way.
+(`test-seedsigner.py` re-checks the very frames above against SeedSigner's
+detector regex and PSBT parser.)
 
 ---
 
@@ -193,4 +216,9 @@ packages exist **only** so `test.mjs` can cross-check the same PSBT bytes.
 
 ## License
 
-Provided as-is for **testing only**. Not financial advice, not a product.
+**No license file is included.** By default that means *all rights reserved*:
+anyone is free to read and use this code for their own testing, but it may
+not legally be redistributed under other terms. This project is provided
+as-is for testing purposes only — it is not financial advice and not a
+product. (Happy to accept a standard `LICENSE`, e.g. MIT, if that's
+preferable.)

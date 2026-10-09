@@ -1,17 +1,26 @@
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import puppeteer from "puppeteer-core";
+const here = path.dirname(fileURLToPath(import.meta.url));
+const indexFile = path.join(here, "index.html");
 const errors = [];
-const browser = await puppeteer.launch({
-  executablePath: "/usr/bin/chromium",
+// Optional: point CHROMIUM_BIN at your chromium/chrome binary, e.g.
+//   CHROMIUM_BIN=/usr/bin/chromium node test-browser.mjs
+// If unset, puppeteer finds a browser via its default resolution.
+const launchOpts = {
+  ...(process.env.CHROMIUM_BIN ? { executablePath: process.env.CHROMIUM_BIN } : {}),
   headless: "new",
   args: ["--no-sandbox", "--disable-gpu", "--window-size=1024,1600"],
-});
+};
+const browser = await puppeteer.launch(launchOpts);
 const page = await browser.newPage();
 page.on("console", (m) => {
   const t = m.type();
   if (t === "error" || t === "warning") errors.push(`[${t}] ${m.text()}`);
 });
 page.on("pageerror", (e) => errors.push("[pageerror] " + e.message));
-await page.goto("file:///home/ben/Documents/WIFTest/index.html", { waitUntil: "networkidle2", timeout: 60000 });
+await page.goto(pathToFileURL(indexFile).href, { waitUntil: "networkidle2", timeout: 60000 });
 await new Promise((r) => setTimeout(r, 1500));
 const report = await page.evaluate(() => {
   const q = (s) => document.querySelector(s);
@@ -34,7 +43,7 @@ const report = await page.evaluate(() => {
 });
 console.log("console errors/warnings:", errors.length ? errors : "none");
 console.log(JSON.stringify(report, null, 2));
-await page.screenshot({ path: "/tmp/wiftest-full.png", fullPage: true });
+await page.screenshot({ path: path.join(os.tmpdir(), "wiftest-full.png"), fullPage: true });
 await browser.close();
 const ok = report.banner
   && report.qrWifImgs >= 1
