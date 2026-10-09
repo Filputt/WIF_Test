@@ -96,8 +96,8 @@
 <div class="wrap">
 <header class="site">
   <h1>SeedSigner WIF + PSBT Test-Data Generator <span class="testtag">TEST / DEMO</span></h1>
-  <p>Generates <b>fake, deterministic</b> test data to exercise the SeedSigner
-     “WIF key signing” workflow (scan WIF → scan PSBT → review → sign).
+  <p>Generates <b>fake, deterministic</b> test data to exercise the <a href="https://github.com/3rdIteration/seedsigner" class="ext">3rdIteration/seedsigner</a>
+     “WIF key signing” workflow (scan PSBT → offer to sign with a WIF key → scan WIF → review → sign).
      Everything is computed locally in your browser. All keys are known demo keys and
      the transaction is invalid — <b>never</b> broadcast it.</p>
 </header>
@@ -219,8 +219,10 @@
         (or switch this page to Testnet). The network must match or the scripts won't line up.</li>
     <li>SeedSigner → <code>Settings → Advanced</code> → enable <b>“WIF keys”</b>
         (and “BIP38 keys” too, if you are testing that path).</li>
-    <li>On SeedSigner, scan the <b>WIF QR</b> (section&nbsp;2) → the demo key is loaded.</li>
-    <li>On SeedSigner, scan the <b>PSBT QR</b> (section&nbsp;4) → review the (fake) transaction, then <b>sign</b>.</li>
+    <li>On the device, <b>first scan the PSBT</b> (section&nbsp;4) — with the WIF option
+        enabled, it now offers to sign using a WIF key.</li>
+    <li>When it does, <b>scan the WIF QR</b> (section&nbsp;2) → the demo key is loaded.</li>
+    <li>Review the (fake) transaction, then <b>sign</b>.</li>
     <li>Read the signed PSBT back from the device's animated QR and confirm the signature was added.</li>
     <li>Turn the WIF/BIP38 settings back <b>off</b> on the device when done.</li>
   </ol>

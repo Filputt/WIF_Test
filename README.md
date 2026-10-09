@@ -11,25 +11,23 @@
 
 ## 30-second background
 
-**SeedSigner** is an open-source offline hardware wallet: you point its
-camera at a QR code, it reviews what you're about to sign, you enter your PIN,
-and it produces a signature — all while air-gapped from your computer and the
-internet. One of its key entry points is the **"WIF key signing"** workflow:
+**SeedSigner** is an open-source, **air-gapped, stateless** hardware signing
+device: you point its camera at a QR code, it reviews what you're about to
+sign, and it produces a signature — all offline, no phone, no state kept
+between operations (and no PIN).
 
-1. scan a **WIF** — *Wallet Import Format*, a text encoding of a Bitcoin
+The specific feature this project targets is **"WIF key signing"**, as
+implemented by the **[3rdIteration/seedsigner](https://github.com/3rdIteration/seedsigner)**
+fork (WIF-key support is that fork's distinguishing addition). On that
+device the WIF-signing flow is **PSBT-first**:
+
+1. scan the **PSBT** — a *Partially Signed Bitcoin Transaction* (BIP-174),
+   the standard container for handing an unsigned transaction to a signer;
+2. if the **use-WIF-key** option is enabled, the device offers to sign with
+   a WIF key;
+3. scan the **WIF** — *Wallet Import Format*, a text form of a Bitcoin
    private key;
-2. scan a **PSBT** — *Partially Signed Bitcoin Transaction* (BIP-174), the
-   industry-standard container for handing an unsigned transaction to a
-   signer;
-3. review, then sign.
-
-Testing that flow requires a *valid, internally-consistent* trio — a WIF, a
-transaction it can actually sign, and QR codes a real scanner will accept —
-without real keys or coins on the table. **This project provides exactly that:**
-a single self-contained HTML page that derives a deterministic *demo* key,
-builds a structurally-valid BIP-174 PSBT that only the demo key can sign,
-renders the QR codes in the exact formats SeedSigner's scanner recognizes,
-and live-verifies all of it against independent reference libraries.
+4. review, then sign.
 
 ## What it does
 
