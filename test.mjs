@@ -146,20 +146,25 @@ console.log("== D. WIF / addresses (fixed seeds, both networks) ==");
   console.log(`  testnet  WIF=${wifTest}  P2PKH=${p2pkh_test}  P2WPKH=${tb}`);
 }
 
-console.log("== E. Segwit-QR framing ==");
+console.log("== E. PSBT QR formats (SeedSigner-recognized) ==");
 {
-  const f = app.makeFrame(enc.encode("01234567"), 3, 10);
-  const expected = Buffer.from([0,0,0,0, 1, 0,0,0,0,0,0,0,0,0,0,0,0, 3, 10, 0, 8]);
-  ok("frame = 17 fixed prefix + idx + total + len(2) + payload",
-     Buffer.from(f).subarray(0, 21).equals(expected),
-     Buffer.from(f).subarray(0, 21).toString("hex"));
-  ok("frame payload intact", Buffer.from(f).subarray(21).toString() === "01234567");
-  const all = app.splitFrames(enc.encode("0123456789abcdefghijklmn"), 5);
-  ok("splitFrames(24 B, 5) → 5 frames, idx/total correct",
-     all.length === 5 && all.every((x, i) => x[17] === i && x[18] === 5));
-  const joined = Buffer.concat(all.map((x) => Buffer.from(x).subarray(21)));
-  ok("reassembly is lossless", joined.toString() === "0123456789abcdefghijklmn");
-  ok("every frame carries the 0x01 marker at byte 4", all.every((x) => x[4] === 1));
+  // Canonical base64 of the P2WPKH PSBT, exactly as the page emits it.
+  const b64 = app.b64encode(app.buildPsbt({ spendType: "p2wpkh", inScript: IN_WPKH, destScript: DEST_WPKH }));
+  ok("psbt b64 is canonical (no stray chars)", /^[A-Za-z0-9+/=]+$/.test(b64) && b64.length % 4 === 0 || b64.endsWith("==") ? true : false, b64.slice(-8));
+  const SEEDSIGNER_RE = /^p(\d+)of(\d+) ([A-Za-z0-9+\/=]+)$/; // decode_qr.py: detect_segment_type
+  const frames10 = app.specterFrames(b64, 10);
+  ok("every pNofM frame matches SeedSigner's detector regex", frames10.every((f) => SEEDSIGNER_RE.test(f)),
+     frames10.join(" | "));
+  ok("reassembly (join in index order) reproduces the exact base64", app.specterJoin(frames10) === b64);
+  ok("joined b64 decodes to the identical PSBT bytes",
+     Buffer.from(app.specterJoin(frames10), "base64").equals(Buffer.from(b64, "base64")));
+  // Order-independence, like a real animated scan arriving out of order.
+  const shuffled = [...frames10]; for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
+  ok("out-of-order scan still reassembles to the same base64", app.specterJoin(shuffled) === b64);
+  // Full-base64 static mode = a single frame whose SLICE is exactly the base64.
+  const one = app.specterFrames(b64, 1);
+  ok("N=1 → one frame whose payload is the full base64 string",
+     one.length === 1 && /^p1of1 ([A-Za-z0-9+\/=]+)$/.test(one[0]) && one[0].split(" ")[1] === b64);
 }
 
 console.log("== F. misc core helpers ==");

@@ -174,7 +174,7 @@
 
   <div class="grid two" style="align-items:start">
     <div class="card qrcode-box">
-      <h3>Scan this on SeedSigner → <b>PSBT</b> (animated Segwit split QR)</h3>
+      <h3>Scan on SeedSigner → <b>PSBT</b> (Specter <code>pNofM</code> animated format)</h3>
       <div class="holder" id="qr-psbt"></div>
       <div class="qrcode-label frame-ind" id="frame-ind">…</div>
     </div>
@@ -190,8 +190,8 @@
       <h3 style="margin-top:16px">QR animation controls</h3>
       <div class="ctl">
         <span class="seg" id="qr-mode" role="group" aria-label="QR mode">
-          <button data-mode="anim" class="active" type="button">Animated (split)</button>
-          <button data-mode="full" type="button">Full single QR</button>
+          <button data-mode="anim" class="active" type="button">Animated · Specter pNofM</button>
+          <button data-mode="full" type="button">Full single QR · base64</button>
         </span>
       </div>
       <div class="ctl">
@@ -203,9 +203,11 @@
       <div class="ctl">
         <label>Frames: N = <input type="number" id="frames" min="2" max="50" value="10"></label>
       </div>
-      <p class="hint">Split-QR framing (same style Sparrow/Electrum/SeedSigner use): each frame is
-        the 17-byte header (4×0x00, 0x01, 12×0x00), then frame index, total frames,
-        data length (2 bytes), then that frame's chunk of the base64 PSBT — encoded as raw QR bytes.</p>
+      <p class="hint"><b>Specter Desktop animated format</b> — the exact PSBT animation format
+        SeedSigner's scanner parses (matches <code>^p(\d+)of(\d+) ([A-Za-z0-9+/=]+)$</code> in
+        <code>decode_qr.py</code>): each QR holds the text <code>pNofM&nbsp;&lt;base64-slice&gt;</code>;
+        scanning all M frames reassembles to the exact base64 shown on the right
+        (order doesn't matter). "Full single QR" is the same base64 in one QR.</p>
     </div>
   </div>
 </section>
@@ -542,28 +544,46 @@ export function parsePsbt(bytes) {
   };
 }
 
-/* ---------- Segwit QR split framing (Sparrow/Electrum/SeedSigner style) ---------- */
-const FRAME_PREFIX = [0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // 17 fixed bytes
-export function makeFrame(data, idx, total) {
-  const f = new Uint8Array(FRAME_PREFIX.length + 4 + data.length);
-  f.set(FRAME_PREFIX, 0);
-  f[17] = idx; f[18] = total;
-  f[19] = (data.length >>> 8) & 0xff; f[20] = data.length & 0xff;
-  f.set(data, 21);
-  return f;
-}
-export function splitFrames(bytes, n) {
-  if (!Number.isInteger(n) || n < 1 || n > 255) throw new Error("frames out of range");
-  n = Math.min(n, bytes.length);
-  const per = Math.ceil(bytes.length / n);
-  const total = Math.ceil(bytes.length / per); // exact frame count (last frame may be shorter)
+/* ---------- PSBT QR formats that SeedSigner ACTUALLY accepts ----------
+   Verified against SeedSigner's scanner (src/seedsigner/models/decode_qr.py,
+   `DecodeQR.detect_segment_type`), which recognizes exactly these PSBT types:
+     1. Specter Desktop animated base64 segments:
+          each QR is the ASCII text  p{N}of{M} {base64slice}
+          (N is 1-based, single space, slice restricted to [A-Za-z0-9+/=])
+          `SpecterPsbtQrDecoder` joins the slices -> b64decode -> PSBT.
+     2. A single QR holding the whole base64 string (`PSBT__BASE64`).
+     3. UR2 `ur:crypto-psbt/...` and base43 (not offered here).
+   The old 17-byte\x01 binary framing was NOT in that list, which is why
+   the device reported "QR code is invalid or data format is not yet supported". */
+
+// Specter "pNofM <base64-slice>" frames. Slices are contiguous pieces of the
+// full base64 string so that joining them (in index order) reproduces it exactly.
+export function specterFrames(b64, n) {
+  if (!Number.isInteger(n) || n < 1) throw new Error("frames out of range");
+  if (!/^[A-Za-z0-9+/=]+$/.test(b64)) throw new Error("not base64");
+  n = Math.min(n, b64.length);
+  const per = Math.ceil(b64.length / n);
+  const total = Math.ceil(b64.length / per); // exact count (last may be shorter)
   const frames = [];
   for (let i = 0; i < total; i++) {
-    frames.push(makeFrame(bytes.slice(i * per, Math.min(bytes.length, (i + 1) * per)), i, total));
+    frames.push("p" + (i + 1) + "of" + total + " " + b64.slice(i * per, Math.min(b64.length, (i + 1) * per)));
   }
   return frames;
 }
-export const bytesToString = (b) => { let s = ""; for (const x of b) s += String.fromCharCode(x); return s; };
+// Reassemble in index order, exactly like SeedSigner's SpecterPsbtQrDecoder.
+export function specterJoin(frames) {
+  const byIdx = new Map();
+  for (const f of frames) {
+    const m = /^p(\d+)of(\d+) ([A-Za-z0-9+/=]+)$/.exec(f);
+    if (!m) throw new Error("bad frame: " + f);
+    byIdx.set(+m[1], m[3]);
+  }
+  let out = "";
+  for (let i = 1; i <= byIdx.size; i++) out += byIdx.get(i);
+  return out;
+}
+// The regex SeedSigner uses to recognize each animated frame.
+export const SEEDSIGNER_SPECTER_RE = /^p(\d+)of(\d+) ([A-Za-z0-9+/=]+)$/;
 
 /* ---------- known-answer self tests (pure) ---------- */
 export function selfTestsPure() {
@@ -625,22 +645,18 @@ export function selfTestsPure() {
     if (parsed.nonWitnessUtxo.length < 80) throw new Error("prev tx too small: " + parsed.nonWitnessUtxo.length);
     return hex(ps.slice(0, 24));
   });
-  t("Segwit-QR framing: header bytes + reassembly", () => {
-    const bytes = enc.encode("01234567");
-    const fr = makeFrame(bytes, 3, 10);
-    if (fr.length !== 17 + 4 + 8) throw new Error("frame len " + fr.length);
-    for (let i = 0; i < 4; i++) if (fr[i] !== 0) throw new Error("prefix zero");
-    if (fr[4] !== 1) throw new Error("0x01 marker");
-    for (let i = 5; i < 17; i++) if (fr[i] !== 0) throw new Error("reserved zeros");
-    if (fr[17] !== 3 || fr[18] !== 10) throw new Error("idx/total");
-    if (fr[19] !== 0 || fr[20] !== 8) throw new Error("len field");
-    if (hex(fr.subarray(21)) !== "3031323334353637") throw new Error("payload");
-    const all = splitFrames(enc.encode("abcdefghijklmnopqrstuvwxyz"), 4);
-    if (all.length !== 4) throw new Error("frame count " + all.length);
-    const joined = concat(all.map((f) => f.subarray(21)));
-    if (joined.length !== 26) throw new Error("reassembly " + joined.length);
-    if (!all.every((f, i) => f[17] === i && f[18] === all.length)) throw new Error("idx/total fields");
-    return "ok";
+  t("PSBT QR format: Specter pNofM slices (SeedSigner-recognized)", () => {
+    const b64 = b64encode(enc.encode("0123456789abcdef")); // canonical base64
+    for (const n of [1, 2, 4, 10]) {
+      const fr = specterFrames(b64, n);
+      if (!fr.every((f) => SEEDSIGNER_SPECTER_RE.test(f))) throw new Error("frame mismatch: " + fr.join("|"));
+      if (fr.some((f) => /(\s{2,})/.test(f) || !/^p\d+of\d+ /.test(f))) throw new Error("frame shape");
+      if (specterJoin(fr) !== b64) throw new Error("reassembly changed data");
+      // slices must be contiguous & ordered
+      const parts = fr.map((f) => f.split(" ")[1]);
+      if (parts.join("") !== b64) throw new Error("slice order");
+    }
+    return "seedsigner-specter-frames-ok";
   });
   return results;
 }
@@ -721,14 +737,15 @@ function renderFrame() {
   }
   const f = state.framesArr[state.frameIdx % state.framesArr.length];
   const qr = qrcode(0, "L");
-  qr.addData(bytesToString(f), "Byte");
+  qr.addData(f, "Byte"); // ASCII frame text (pNofM base64-slice) — SeedSigner reads this as a string
   qr.make();
   el.innerHTML = qr.createImgTag(8);
-  $("frame-ind").textContent = "Frame " + ((state.frameIdx % state.framesArr.length) + 1) + " / " + state.framesArr.length;
+  $("frame-ind").textContent = "Frame " + ((state.frameIdx % state.framesArr.length) + 1) + " / " + state.framesArr.length + "   ·   " + f.split(" ")[0];
 }
 
 function rebuildFrames() {
-  state.framesArr = splitFrames(enc.encode(state.data.b64), state.frames);
+  // Specter "pNofM <base64-slice>" frames — the animated PSBT format SeedSigner parses
+  state.framesArr = specterFrames(state.data.b64, state.frames);
   state.frameIdx = 0;
 }
 

@@ -27,18 +27,20 @@ build step**. It will:
 3. **Build a minimal, structurally-valid BIP-174 PSBT** (1 input → 1 output,
    0.99 BTC out of 1.00 BTC in) that pays a **P2WPKH** output, and encode it
    as **base64** (the `cHNidP8…` form SeedSigner accepts).
-4. **Frame that PSBT into SeedSigner "Segwit-QR" frames** (the 21-byte
-   header + payload scheme) and animate **frame 1/N → 2/N → …** via the
-   `FPS` + `N` controls, exactly like SeedSigner's multi-QR scan.
-   - Switch **QR mode** to **Full base64** to render the *single* QR holding
-     the whole base64 string instead of framed QRs.
+4. **Frame that PSBT as SeedSigner "Specter Desktop" animated frames** —
+   each QR holds the ASCII text `pNofM <base64-slice>` (1-indexed), exactly
+   the format SeedSigner's scanner parses (`decode_qr.py`) — and animate
+   **frame 1/N → 2/N → …** via the `FPS` + `N` controls. Scanning in any
+   order reassembles to the identical base64.
+   - Switch **QR mode** to **Full single QR** to render the *single* QR
+     holding the whole base64 string (also a format SeedSigner accepts).
 5. **Live-verify** the PSBT three ways, shown as badges:
    - **self-parser:** the page's own strict BIP-174 reader.
    - **bitcoinjs-lib 6.1.5** (loaded from a pinned CDN): the real BIP-174
      parser, confirming `Psbt.fromBase64(...)` succeeds and the fields match.
    - **structure:** `tx v0 · locktime 0 · 1 in / 1 out · <n> B`.
 6. Run a **battery of known-answer self-tests** (EC, WIF, P2PKH/bech32,
-   Segwit-QR framing, PSBT build+parse) and print them on the page.
+   Specter-PSBT framing, PSBT build+parse) and print them on the page.
 
 ### Spend type
 - **P2WPKH (default):** input script `0014 <hash160>`, output P2WPKH.
@@ -67,17 +69,33 @@ xdg-open index.html      # Linux
 
 The harness extracts the embedded app module and cross-validates the
 generated PSBT against **bitcoinjs-lib** and the standalone **bip174**
-reference, plus WIF/bech32/Segwit-QR/framing checks.
+reference, plus WIF/bech32 and the SeedSigner-recognized PSBT-QR framing.
 
 ```
 npm install        # installs pinned dev deps (bitcoinjs-lib, bip174, @noble/*, bs58check, bech32)
-node test.mjs      # expected: "RESULT: 47 passed, 0 failed"
+node test.mjs      # expected: "RESULT: 48 passed, 0 failed"
 ```
 
 A headless-Chromium smoke test (optional, needs a `chromium` binary on PATH):
 
 ```
 node test-browser.mjs   # expected: "BROWSER TEST: OK"
+```
+
+### Prove the PSBT-QR frames are accepted by SeedSigner's real decoder
+
+`test-seedsigner.py` reproduces, line-for-line, the exact code path in
+SeedSigner's `src/seedsigner/models/decode_qr.py` — the `detect_segment_type`
+regex for `pNofM`/base64, the `SpecterPsbtQrDecoder` segment join, the
+canonical-base64 check, and the final `embit.psbt.PSBT.parse()` (the same
+PSBT library SeedSigner itself uses) — and runs our actual rendered frames
+through it. This is the direct regression test for the *"QR code is invalid
+or data format is not yet supported"* error.
+
+```
+node emit-frames.mjs /tmp/frames.json        # emit the exact QR payloads from index.html
+pip install embit                            # SeedSigner's PSBT library (final parse step)
+python3 test-seedsigner.py /tmp/frames.json  # expected: "ALL SEEDSIGNER-DECODER CHECKS PASSED"
 ```
 
 ---
@@ -119,18 +137,32 @@ key `PSBT_GLOBAL_UNSIGNED_TX (0x00)`. Then, per BIP-174:
 Key/value entries use bitcoin's **varint** for length. The whole thing is
 base64-encoded to the `cHNidP8…` form.
 
-### Segwit-QR framing (SeedSigner multi-QR)
+### PSBT QR formatting (SeedSigner-compatible)
 
-Each PSBT byte-stream is split into 32-byte payloads, each wrapped in the
-21-byte **Segwit-QR header**:
+> **Note:** the earlier revision emitted an *invented* 21-byte binary-frame
+> "Segwit" header. That format is **not** one SeedSigner recognizes, which
+> causes its `QR code is invalid or data format is not yet supported` error.
+> It is gone. The PSBT is now presented in the two PSBT input formats that
+> SeedSigner's scanner (`src/seedsigner/models/decode_qr.py`) explicitly
+> accepts:
 
-```
-[ 00 00 00 00 | 01 | idx | total | len(2,BE) ] ‖ payload
-```
+- **Specter Desktop animated base64 segments (default).** The PSBT's base64
+  string is sliced into `N` contiguous pieces; the `i`-th QR encodes the
+  ASCII text
 
-`idx`/`total` let the scanner reassemble frames in order. The `FPS` and `N`
-controls only change how these frames are *presented* as a slideshow; the
-underlying PSBT byte-string is identical.
+  ```
+  p{i}of{N} <base64-slice_i>
+  ```
+
+  SeedSigner's detector regex is `^p(\d+)of(\d+) ([A-Za-z0-9+/=]+$)` and
+  `SpecterPsbtQrDecoder` joins the slices (in any scan order) to the exact
+  base64 before `base64 → PSBT`. Our slices are verbatim sub-strings of the
+  same valid base64 shown on the page, so the join is byte-identical.
+- **Full single QR (base64).** One QR holding the whole `cHNidP8…` base64
+  string. This is the `PSBT__BASE64` path.
+
+The `FPS` + `N` controls only change how the *frames* are presented as a
+slideshow; the underlying PSBT byte-string is identical either way.
 
 ---
 
